@@ -1,3 +1,4 @@
+import io.qameta.allure.Step;
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
@@ -65,12 +66,14 @@ public class OrderCreationWithColorApiTest {
     }
 
     @Test
+    @Step("Тестируем создание заказа с указанием цвета")
     public void testCreateOrderWithColor() {
         String requestBody = createRequestBody();
         Response response = sendPostRequest(requestBody);
         validateResponse(response);
     }
 
+    @Step("Создаем тело запроса")
     private String createRequestBody() {
         String colorJson = (color == null || color.length == 0) ? "[]" : "[\"" + String.join("\",\"", color) + "\"]";
         return "{\n" +
@@ -86,6 +89,7 @@ public class OrderCreationWithColorApiTest {
                 "}";
     }
 
+    @Step("Отправка POST-запроса")
     private Response sendPostRequest(String requestBody) {
         return given()
                 .contentType(ContentType.JSON)
@@ -94,6 +98,7 @@ public class OrderCreationWithColorApiTest {
                 .post();
     }
 
+    @Step("Проверка ответа")
     private void validateResponse(Response response) {
         response.then()
                 .statusCode(expectedStatusCode) // Проверяем, что статус код равен 201

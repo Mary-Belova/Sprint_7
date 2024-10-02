@@ -1,5 +1,6 @@
 import io.restassured.RestAssured;
 import io.qameta.allure.Step;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -31,9 +32,15 @@ public class CourierApiTest {
                 .statusCode(201) // Проверка успешного создания
                 .extract()
                 .path("id"); // Предполагаем, что API возвращает ID курьера
+    }
 
-        // Удаление созданного курьера сразу после успешного создания
-        deleteCourier(courierId);
+    @After
+    public void tearDown() {
+        // Удаление созданного курьера, если его ID существует
+        if (courierId != null) {
+            deleteCourier(courierId);
+            courierId = null; // Обнуляем ID после удаления
+        }
     }
 
     private void deleteCourier(String id) {
@@ -77,7 +84,7 @@ public class CourierApiTest {
                 .then()
                 .statusCode(201) // Проверка успешного создания
                 .extract()
-                .path("id"); // Сохраняем ID для удаления
+                .path("id"); // Сохраняем ID для дальнейшего удаления
 
         // Попытка создания второго курьера с теми же данными
         given()
@@ -88,8 +95,5 @@ public class CourierApiTest {
                 .then()
                 .statusCode(409) // Проверка, что возвращается код 409 (конфликт)
                 .body("message", equalTo("Этот логин уже используется")); // Проверка сообщения ошибки
-
-        // Удаление курьера после теста
-        deleteCourier(courierId);
     }
 }
