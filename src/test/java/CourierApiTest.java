@@ -8,22 +8,34 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CourierApiTest {
-
     private static final String BASE_URI = "https://qa-scooter.praktikum-services.ru/api/v1/courier";
-    private String courierId; // Для хранения ID курьера
+    private String courierId;
 
     @Before
     public void setUp() {
         RestAssured.baseURI = BASE_URI;
     }
 
+    @After
+    public void tearDown() {
+// Удаляем курьера после завершения тестов, если его ID существует
+        if (courierId != null) {
+            deleteCourier(courierId);
+            courierId = null; // Обнуляем ID после удаления
+        }
+    }
+
     @Test
     @Step("Создаем нового курьера")
     public void testCreateCourier() {
-        String requestBody = "{\"login\": \"ninja\", \"password\": \"1234\", \"firstName\": \"Тест\"}";
+        String requestBody = "{\"login\": \"ninja_" + System.currentTimeMillis() + "\", \"password\": \"1234\", \"firstName\": \"Тест\"}";
 
-        // Создание курьера и сохранение ID в courierId
-        courierId = given()
+// Создание курьера и сохранение его ID
+        courierId = createCourier(requestBody);
+    }
+
+    private String createCourier(String requestBody) {
+        return given()
                 .contentType("application/json")
                 .body(requestBody)
                 .when()
@@ -31,16 +43,7 @@ public class CourierApiTest {
                 .then()
                 .statusCode(201) // Проверка успешного создания
                 .extract()
-                .path("id"); // Предполагаем, что API возвращает ID курьера
-    }
-
-    @After
-    public void tearDown() {
-        // Удаление созданного курьера, если его ID существует
-        if (courierId != null) {
-            deleteCourier(courierId);
-            courierId = null; // Обнуляем ID после удаления
-        }
+                .path("id"); // Возвращение ID курьера
     }
 
     private void deleteCourier(String id) {
@@ -72,21 +75,13 @@ public class CourierApiTest {
     @Test
     @Step("Тестируем создание двух одинаковых курьеров")
     public void testCreateTwoIdenticalCouriers() {
-        // Данные для курьера
-        String requestBody = "{\"login\": \"ninja\", \"password\": \"1234\", \"firstName\": \"Тест\"}";
+// Данные для курьера
+        String requestBody = "{\"login\": \"ninja_" + System.currentTimeMillis() + "\", \"password\": \"1234\", \"firstName\": \"Тест\"}";
 
-        // Создаем первого курьера
-        courierId = given()
-                .contentType("application/json")
-                .body(requestBody)
-                .when()
-                .post("/")
-                .then()
-                .statusCode(201) // Проверка успешного создания
-                .extract()
-                .path("id"); // Сохраняем ID для дальнейшего удаления
+// Создаем первого курьера
+        courierId = createCourier(requestBody);
 
-        // Попытка создания второго курьера с теми же данными
+// Попытка создания второго курьера с теми же данными
         given()
                 .contentType("application/json")
                 .body(requestBody)
@@ -95,5 +90,27 @@ public class CourierApiTest {
                 .then()
                 .statusCode(409) // Проверка, что возвращается код 409 (конфликт)
                 .body("message", equalTo("Этот логин уже используется")); // Проверка сообщения ошибки
+    }
+
+    @Test
+    @Step("Тестируем успешный вход с курьером")
+    public void testSuccessfulLogin() {
+// Создание нового курьера для входа в систему
+        String requestBody = "{\"login\": \"ninja_" + System.currentTimeMillis() + "\", \"password\": \"1234\"}";
+        courierId = createCourier(requestBody);
+
+// Проверка успешного входа в систему
+        int loginResponseId = given()
+                .contentType("application/json")
+                .body(requestBody)
+                .when()
+                .post("/login")
+                .then()
+                .statusCode(200)
+                .extract()
+                .path("id"); // Получаем ID из ответа логина
+
+// Проверяем, что ID не равен 0
+        assert loginResponseId != 0 : "ID курьера не должен быть равен 0";
     }
 }
