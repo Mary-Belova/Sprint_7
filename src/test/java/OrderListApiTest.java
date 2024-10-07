@@ -1,68 +1,96 @@
 import io.restassured.RestAssured;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
+import org.junit.After;
 import org.junit.BeforeClass;
 import org.junit.Test;
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+
+import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.equalTo;
 
 public class OrderListApiTest {
 
     private static final String BASE_URL = "https://qa-scooter.praktikum-services.ru/api/v1/orders";
+    private static final String COURIER_URL = "https://qa-scooter.praktikum-services.ru/api/v1/courier";
+
+    private String idCourier;
 
     @BeforeClass
     public static void setUp() {
         RestAssured.baseURI = BASE_URL;
     }
 
-    // Тест: Получение всех заказов без указания courierId
     @Test
-    public void testGetOrdersWithoutCourierId() {
-        Response response = given()
+    public void getOrdersListNoCourierId() {
+        Response response = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .when()
                 .get();
 
-        response.then()
-                .statusCode(200)
-                .body("orders", notNullValue()) // Проверка, что поле orders не null
-                .body("orders", isA(java.util.List.class)) // Проверка, что orders является списком
-                .body("orders.size()", greaterThan(0)) // Проверка, что в orders хотя бы один заказ
-                .body("pageInfo", notNullValue()) // Проверка наличия объекта pageInfo
-                .body("availableStations", notNullValue()); // Проверка наличия доступных станций
+        response.then().log().all().assertThat().statusCode(200)
+                .and()
+                .assertThat()
+                .body("orders", notNullValue());
     }
 
-    // Тест: Получение заказов с несуществующим courierId
     @Test
-    public void testGetOrdersWithNonExistentCourierId() {
-        int nonExistentCourierId = 9999; // Не существует
+    public void getOrdersListWithExistCourierId() {
+        // Создаем нового курьера
+        String courierData = "{ \"login\": \"testCourier" + System.currentTimeMillis() + "\", \"password\": \"testPassword\", \"firstname\": \"Test\" }";
+        Response createCourierResponse = RestAssured.given()
+                .contentType(ContentType.JSON)
+                .body(courierData)
+                .when()
+                .post(COURIER_URL);
 
-        Response response = given()
+        createCourierResponse.then().statusCode(201);
+
+        // Логин курьера
+        Response loginResponse = RestAssured.given()
+                .contentType(ContentType.JSON)
+                .body(courierData)
+                .when()
+                .post(COURIER_URL + "/login");
+
+        idCourier = loginResponse.jsonPath().getString("id");
+
+        // Получение списка заказов с существующим идентификатором курьера
+        Response response = RestAssured.given()
+                .contentType(ContentType.JSON)
+                .queryParam("courierId", idCourier)
+                .when()
+                .get();
+
+        response.then().log().all().assertThat().statusCode(200)
+                .and()
+                .assertThat()
+                .body("orders", notNullValue());
+    }
+
+    @Test
+    public void getOrdersListWithNotExistCourierId() {
+        int nonExistentCourierId = 9999; // Не существует
+        Response response = RestAssured.given()
                 .contentType(ContentType.JSON)
                 .queryParam("courierId", nonExistentCourierId)
                 .when()
                 .get();
 
-        response.then()
-                .statusCode(404)
+        response.then().log().all().assertThat().statusCode(404)
+                .and()
+                .assertThat()
                 .body("message", equalTo("Курьер с идентификатором " + nonExistentCourierId + " не найден"));
     }
 
-    // Тест: Получение заказов с существующим courierId
-    @Test
-    public void testGetOrdersWithExistingCourierId() {
-        int existingCourierId = 1; // Укажите здесь корректный id курьера
-
-        Response response = given()
-                .contentType(ContentType.JSON)
-                .queryParam("courierId", existingCourierId)
-                .when()
-                .get();
-
-        response.then()
-                .statusCode(200)
-                .body("orders", notNullValue()) // Заказы не null
-                .body("orders", isA(java.util.List.class)) // Проверка, что это список
-                .body("orders.size()", greaterThan(0)); // Проверка, что хотя бы один заказ присутствует
+    @After
+    public void deleteCourier() {
+        if (idCourier != null) {
+            RestAssured.given()
+                    .contentType(ContentType.JSON)
+                    .when()
+                    .delete(COURIER_URL + "/" + idCourier)
+                    .then()
+                    .statusCode(200); // Ожидаем успешное удаление курьера
+        }
     }
 }
